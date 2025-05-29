@@ -1,0 +1,970 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste da Tríade do Tempo - ImpulsoCoaching</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <script src="https://cdn.emailjs.com/sdk/4.4.1/email.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 30px;
+            background: linear-gradient(135deg, #0288d1, #01579b);
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #e6f3ff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #4fc3f7;
+        }
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(to right, #4fc3f7, #0288d1);
+        }
+        h1 {
+            text-align: center;
+            font-size: 36px;
+            color: #0288d1;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+        }
+        h2 {
+            font-size: 26px;
+            color: #004080;
+            margin: 30px 0 15px;
+            font-weight: 600;
+        }
+        p {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        .instructions {
+            background: #e1f5fe;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border-left: 6px solid #4fc3f7;
+            font-size: 16px;
+            color: #333;
+        }
+        .instructions strong {
+            color: #000000;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #004080;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #4fc3f7;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            background: #f5f5f5;
+        }
+        .form-group input:focus {
+            border-color: #0288d1;
+            box-shadow: 0 0 8px rgba(2, 136, 209, 0.3);
+            outline: none;
+            background: #e1f5fe;
+        }
+        .error {
+            color: #d32f2f;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+        .question {
+            background: #f9f9f9;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid #4fc3f7;
+        }
+        .question:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        .question p {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .options {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+        .option {
+            flex: 1;
+            padding: 12px;
+            background: #e3f2fd;
+            border: 2px solid #4fc3f7;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s, border-color 0.3s, transform 0.2s;
+            position: relative;
+        }
+        .option:hover {
+            background: #b3e5fc;
+            border-color: #4fc3f7;
+            transform: scale(1.05);
+        }
+        .option input {
+            display: none;
+        }
+        .option label {
+            display: block;
+            font-size: 14px;
+            color: #333;
+            cursor: pointer;
+            padding-left: 20px;
+            position: relative;
+        }
+        .option input:checked + label::before {
+            content: '●';
+            color: #4caf50;
+            font-size: 25px;
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .option input:checked + label {
+            font-weight: 600;
+            color: #0288d1;
+            background: #0288d1;
+            padding: 12px;
+            border-radius: 8px;
+            color: #fff;
+        }
+        .result-box {
+            background: #e8eaf6;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 12px;
+            border-left: 6px solid #4fc3f7;
+            font-size: 16px;
+        }
+        .result-box h2 {
+            color: #004080;
+            font-size: 23px;
+        }
+        .total-box {
+            text-align: center;
+            margin-top: 40px;
+            padding: 30px;
+            background: #e1f5fe;
+            border-radius: 15px;
+            border: 2px solid #4fc3f7;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .total-box h2 {
+            color: #0288d1;
+            font-size: 28px;
+            margin-bottom: 15px;
+        }
+        .total-box p {
+            font-size: 18px;
+        }
+        .total-box span {
+            font-weight: 600;
+            color: #004080;
+        }
+        .signature {
+            font-size: 14px;
+            color: #004080;
+            text-align: center;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        #result-text {
+            font-size: 22px;
+            color: #000000;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+        .send-button {
+            display: inline-flex;
+            align-items: center;
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #0288d1, #01579b);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s, box-shadow 0.3s;
+            margin: 20px auto;
+            box-shadow: 0 5px 15px rgba(2, 136, 209, 0.4);
+        }
+        .send-button:hover {
+            background: linear-gradient(45deg, #01579b, #003087);
+            transform: scale(1.08);
+            box-shadow: 0 8px 20px rgba(2, 136, 209, 0.6);
+        }
+        .send-button i {
+            margin-right: 12px;
+        }
+        .results-hidden {
+            display: none;
+        }
+        #chart-container, #ideal-chart-container {
+            margin: 30px auto;
+            max-width: 450px;
+            height: 400px;
+            display: inline-block;
+        }
+        #chart-container canvas, #ideal-chart-container canvas {
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .progress-container {
+            margin: 10px 0;
+            text-align: left;
+        }
+        .progress-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+        .progress-bar {
+            width: 100%;
+            background: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+            height: 20px;
+        }
+        .progress {
+            height: 100%;
+            transition: width 0.5s ease-in-out;
+        }
+        .progress-a { background: #FFD700; }
+        .progress-b { background: #0000FF; }
+        .progress-c { background: #FF0000; }
+        #energyLeak {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #000000;
+            background: #FFE6E6;
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #FF0000;
+            display: inline-block;
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 28px;
+            }
+            h2 {
+                font-size: 22px;
+            }
+            .options {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .option {
+                flex: 1 1 18%;
+                min-width: 80px;
+            }
+            #chart-container, #ideal-chart-container {
+                max-width: 300px;
+                height: 300px;
+            }
+        }
+        @media (max-width: 480px) {
+            .options {
+                flex-direction: column;
+            }
+            .option {
+                flex: 1 1 100%;
+            }
+            .send-button {
+                width: 100%;
+                justify-content: center;
+            }
+            #chart-container, #ideal-chart-container {
+                max-width: 250px;
+                height: 250px;
+            }
+        }
+        @media print {
+            body {
+                background: none;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                padding: 10px;
+                border: none;
+            }
+            .error, .send-button {
+                display: none;
+            }
+            .results-hidden {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ImpulsoCoaching</h1>
+        <h1>Teste da Tríade do Tempo</h1>
+        <form id="survey-form">
+            <div class="instructions">
+                <p><strong>Instruções:</strong> Para cada pergunta, selecione a opção que melhor reflete sua frequência: <strong>1 (Nunca)</strong>, <strong>2 (Raramente)</strong>, <strong>3 (Às vezes)</strong>, <strong>4 (Quase sempre)</strong>, <strong>5 (Sempre)</strong>. Responda todas as 18 perguntas, preencha os campos de nome, profissão e e-mail, e clique em <strong>"Enviar Resultado"</strong> para descobrir como você gerencia seu tempo!</p>
+            </div>
+            <div class="form-group">
+                <label for="name">Nome *</label>
+                <input type="text" id="name" name="name" required>
+                <p id="name-error" class="error">Por favor, preencha o nome.</p>
+            </div>
+            <div class="form-group">
+                <label for="profession">Profissão *</label>
+                <input type="text" id="profession" name="profession" required>
+                <p id="profession-error" class="error">Por favor, preencha a profissão.</p>
+            </div>
+            <div class="form-group">
+                <label for="email">E-mail *</label>
+                <input type="email" id="email" name="email" required>
+                <p id="email-error" class="error">Por favor, preencha um e-mail válido.</p>
+            </div>
+            <h2>Perguntas</h2>
+            <div class="question">
+                <p>1. Costumo ir a eventos, festas ou cursos, mesmo sem ter muita vontade, para agradar meu chefe, amigos ou família.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q1-1" name="q1" value="1"><label for="q1-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q1-2" name="q1" value="2"><label for="q1-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q1-3" name="q1" value="3"><label for="q1-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q1-4" name="q1" value="4"><label for="q1-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q1-5" name="q1" value="5"><label for="q1-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>2. Não consigo realizar tudo que me propus fazer no dia e preciso fazer hora extra e levar trabalho para casa.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q2-1" name="q2" value="1"><label for="q2-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q2-2" name="q2" value="2"><label for="q2-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q2-3" name="q2" value="3"><label for="q2-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q2-4" name="q2" value="4"><label for="q2-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q2-5" name="q2" value="5"><label for="q2-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>3. Quando recebo um novo e-mail, costumo dar uma olhada para checar o conteúdo.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q3-1" name="q3" value="1"><label for="q3-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q3-2" name="q3" value="2"><label for="q3-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q3-3" name="q3" value="3"><label for="q3-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q3-4" name="q3" value="4"><label for="q3-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q3-5" name="q3" value="5"><label for="q3-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>4. Costumo visitar com regularidade pessoas relevantes em minha vida como amigos, parentes e filhos.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q4-1" name="q4" value="1"><label for="q4-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q4-2" name="q4" value="2"><label for="q4-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q4-3" name="q4" value="3"><label for="q4-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q4-4" name="q4" value="4"><label for="q4-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q4-5" name="q4" value="5"><label for="q4-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>5. É comum aparecer problemas inesperados no meu dia a dia.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q5-1" name="q5" value="1"><label for="q5-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q5-2" name="q5" value="2"><label for="q5-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q5-3" name="q5" value="3"><label for="q5-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q5-4" name="q5" value="4"><label for="q5-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q5-5" name="q5" value="5"><label for="q5-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>6. Assumo compromissos com outras pessoas ou aceito novas funções na empresa, mesmo que não goste muito da nova atividade, se for para aumentar meus rendimentos ou obter uma promoção.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q6-1" name="q6" value="1"><label for="q6-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q6-2" name="q6" value="2"><label for="q6-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q6-3" name="q6" value="3"><label for="q6-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q6-4" name="q6" value="4"><label for="q6-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q6-5" name="q6" value="5"><label for="q6-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>7. Tenho um tempo definido para dedicar a mim mesmo e nele, posso fazer o que quiser.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q7-1" name="q7" value="1"><label for="q7-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q7-2" name="q7" value="2"><label for="q7-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q7-3" name="q7" value="3"><label for="q7-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q7-4" name="q7" value="4"><label for="q7-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q7-5" name="q7" value="5"><label for="q7-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>8. Costumo deixar para fazer relatórios, imposto de renda, compras de Natal, estudar para provas e outras tarefas perto do prazo de entrega.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q8-1" name="q8" value="1"><label for="q8-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q8-2" name="q8" value="2"><label for="q8-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q8-3" name="q8" value="3"><label for="q8-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q8-4" name="q8" value="4"><label for="q8-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q8-5" name="q8" value="5"><label for="q8-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>9. Nos dias de descanso, costumo passar boa parte do dia assistindo à televisão, jogando ou acessando a internet.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q9-1" name="q9" value="1"><label for="q9-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q9-2" name="q9" value="2"><label for="q9-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q9-3" name="q9" value="3"><label for="q9-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q9-4" name="q9" value="4"><label for="q9-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q9-5" name="q9" value="5"><label for="q9-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>10. Faço um planejamento por escrito de tudo que preciso fazer durante minha semana.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q10-1" name="q10" value="1"><label for="q10-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q10-2" name="q10" value="2"><label for="q10-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q10-3" name="q10" value="3"><label for="q10-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q10-4" name="q10" value="4"><label for="q10-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q10-5" name="q10" value="5"><label for="q10-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>11. Posso afirmar que estou conseguindo realizar tudo que gostaria em minha vida e que o tempo está passando na realidade correta.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q11-1" name="q11" value="1"><label for="q11-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q11-2" name="q11" value="2"><label for="q11-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q11-3" name="q11" value="3"><label for="q11-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q11-4" name="q11" value="4"><label for="q11-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q11-5" name="q11" value="5"><label for="q11-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>12. Costumo participar de reuniões sem saber direito o conteúdo, o porquê devo participar ou a que resultado aquele encontro pode levar.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q12-1" name="q12" value="1"><label for="q12-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q12-2" name="q12" value="2"><label for="q12-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q12-3" name="q12" value="3"><label for="q12-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q12-4" name="q12" value="4"><label for="q12-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q12-5" name="q12" value="5"><label for="q12-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>13. Consigo melhores resultados e me sinto mais produtivo quando estou sob pressão ou com o prazo curto.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q13-1" name="q13" value="1"><label for="q13-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q13-2" name="q13" value="2"><label for="q13-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q13-3" name="q13" value="3"><label for="q13-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q13-4" name="q13" value="4"><label for="q13-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q13-5" name="q13" value="5"><label for="q13-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>14. Quando quero alguma coisa, deixo esse objetivo por escrito, estabeleço prazos em minha agenda, monitoro os resultados obtidos e os comparo com os esperados.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q14-1" name="q14" value="1"><label for="q14-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q14-2" name="q14" value="2"><label for="q14-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q14-3" name="q14" value="3"><label for="q14-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q14-4" name="q14" value="4"><label for="q14-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q14-5" name="q14" value="5"><label for="q14-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>15. Leio muitos e-mails desnecessários, com piadas, correntes, propagandas, apresentações, produtos e etc.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q15-1" name="q15" value="1"><label for="q15-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q15-2" name="q15" value="2"><label for="q15-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q15-3" name="q15" value="3"><label for="q15-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q15-4" name="q15" value="4"><label for="q15-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q15-5" name="q15" value="5"><label for="q15-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>16. Estive atrasado com minhas tarefas ou reuniões nas últimas semanas.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q16-1" name="q16" value="1"><label for="q16-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q16-2" name="q16" value="2"><label for="q16-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q16-3" name="q16" value="3"><label for="q16-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q16-4" name="q16" value="4"><label for="q16-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q16-5" name="q16" value="5"><label for="q16-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>17. Faço esporte com regularidade, me alimento da forma adequada e tenho o lazer que gostaria.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q17-1" name="q17" value="1"><label for="q17-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q17-2" name="q17" value="2"><label for="q17-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q17-3" name="q17" value="3"><label for="q17-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q17-4" name="q17" value="4"><label for="q17-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q17-5" name="q17" value="5"><label for="q17-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div class="question">
+                <p>18. É comum reduzir meu horário de almoço ou até mesmo comer enquanto trabalho para concluir um projeto ou tarefa.</p>
+                <div class="options">
+                    <div class="option"><input type="radio" id="q18-1" name="q18" value="1"><label for="q18-1">1. Nunca</label></div>
+                    <div class="option"><input type="radio" id="q18-2" name="q18" value="2"><label for="q18-2">2. Raramente</label></div>
+                    <div class="option"><input type="radio" id="q18-3" name="q18" value="3"><label for="q18-3">3. Às vezes</label></div>
+                    <div class="option"><input type="radio" id="q18-4" name="q18" value="4"><label for="q18-4">4. Quase sempre</label></div>
+                    <div class="option"><input type="radio" id="q18-5" name="q18" value="5"><label for="q18-5">5. Sempre</label></div>
+                </div>
+            </div>
+            <div id="results-section" class="results-hidden">
+                <h2>Resultados</h2>
+                <p>Os resultados mostram como você distribui seu tempo entre as esferas da Tríade do Tempo:</p>
+                <div class="result-box">
+                    <h2>Circunstância (A)</h2>
+                    <p>Tarefas feitas por pressão externa, como agradar outros. Alta pontuação indica tempo gasto em atividades não alinhadas com seus objetivos.</p>
+                </div>
+                <div class="result-box">
+                    <h2>Importância (B)</h2>
+                    <p>Tarefas planejadas, alinhadas com seus objetivos pessoais. Alta pontuação indica boa gestão de tempo e foco no que realmente importa.</p>
+                </div>
+                <div class="result-box">
+                    <h2>Urgência (C)</h2>
+                    <p>Tarefas reativas, feitas sob pressão de prazos. Alta pontuação indica sobrecarga e necessidade de planejamento.</p>
+                </div>
+                <p><strong>Fonte:</strong> Instituto Impulso Coaching – <a href="http://www.impulsocoaching.com.br" target="_blank">www.impulsocoaching.com.br</a></p>
+            </div>
+            <div class="total-box">
+                <h2 id="result-title" class="results-hidden">Sua Tríade do Tempo</h2>
+                <div id="progress-section" class="results-hidden">
+                    <div class="progress-container">
+                        <div class="progress-label">Circunstância (A): <span id="percentA">0%</span></div>
+                        <div class="progress-bar">
+                            <div class="progress progress-a" id="progressA" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-label">Importância (B): <span id="percentB">0%</span></div>
+                        <div class="progress-bar">
+                            <div class="progress progress-b" id="progressB" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-label">Urgência (C): <span id="percentC">0%</span></div>
+                        <div class="progress-bar">
+                            <div class="progress progress-c" id="progressC" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+                <p id="result-totals" class="results-hidden">
+                    <strong>Totais:</strong> A: <span id="totalA">0</span> | B: <span id="totalB">0</span> | C: <span id="totalC">0</span> | Total Geral: <span id="totalGeneral">0</span><br>
+                    <strong>Vazamento de Energia:</strong> <span id="energyLeak">0</span>
+                </p>
+                <p id="result-text">Preencha todas as perguntas, nome, profissão e e-mail, depois clique em "Enviar Resultado".</p>
+                <button type="button" class="send-button" onclick="sendResults()"><i class="fas fa-envelope"></i> Enviar Resultado</button>
+                <p>ImpulsoCoaching</p>
+                <p class="signature">Rogério Braga</p>
+                <div id="chart-container" class="results-hidden">
+                    <canvas id="triadChart"></canvas>
+                </div>
+                <div id="ideal-chart-container" class="results-hidden">
+                    <canvas id="idealTriadChart"></canvas>
+                </div>
+            </div>
+        </form>
+    </div>
+    <audio id="notification-sound" preload="auto">
+        <source src="https://example.com/notification.mp3" type="audio/mp3">
+    </audio>
+    <script>
+        if (!window.jspdf) {
+            console.error('jsPDF não carregou. Verifique sua conexão à internet.');
+            alert('Erro: Não foi possível carregar a biblioteca necessária para gerar o PDF. Verifique sua conexão à internet e tente novamente.');
+        }
+        if (!window.Chart) {
+            console.error('Chart.js não carregou. Verifique sua conexão à internet.');
+            alert('Erro: Não foi possível carregar a biblioteca necessária para o gráfico. Verifique sua conexão à internet e tente novamente.');
+        }
+        function validateEmail(email) {
+            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return re.test(email);
+        }
+        function generatePDF(name, profession, email, totals, percentages, energyLeak, triadChartImg, idealChartImg) {
+            if (!window.jspdf) {
+                throw new Error('jsPDF não está disponível.');
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+            const pageWidth = 210; // A4 width in mm
+            let y = 10;
+
+            // Center all text content
+            doc.setFontSize(16);
+            doc.text('ImpulsoCoaching', pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.text('Teste da Tríade do Tempo', pageWidth / 2, y, { align: 'center' });
+            y += 10;
+
+            doc.setFontSize(12);
+            doc.text(`Nome: ${name}`, pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.text(`Profissão: ${profession}`, pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.text(`E-mail: ${email}`, pageWidth / 2, y, { align: 'center' });
+            y += 10;
+
+            doc.text(`Circunstância (A): ${percentages.A}%`, pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.text(`Importância (B): ${percentages.B}%`, pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.text(`Urgência (C): ${percentages.C}%`, pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.text(`Totais: A: ${totals.A} | B: ${totals.B} | C: ${totals.C} | Total Geral: ${totals.General}`, pageWidth / 2, y, { align: 'center' });
+            y += 8;
+
+            doc.setTextColor(255, 0, 0);
+            doc.text(`Vazamento de Energia: ${energyLeak}`, pageWidth / 2, y, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+            y += 10;
+
+            // Center chart images
+            const imageWidth = 80; // Width of images in mm
+            const imageX = (pageWidth - imageWidth) / 2; // Center horizontally
+            if (triadChartImg) {
+                doc.text('Gráfico: Sua Tríade', pageWidth / 2, y, { align: 'center' });
+                doc.addImage(triadChartImg, 'PNG', imageX, y + 5, imageWidth, 80);
+                y += 90;
+            }
+            if (idealChartImg) {
+                doc.text('Gráfico: Tríade Ideal', pageWidth / 2, y, { align: 'center' });
+                doc.addImage(idealChartImg, 'PNG', imageX, y + 5, imageWidth, 80);
+                y += 90;
+            }
+
+            doc.text('Fonte: Instituto Impulso Coaching – www.impulsocoaching.com.br', pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.text('ImpulsoCoaching', pageWidth / 2, y, { align: 'center' });
+            y += 6;
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'italic');
+            doc.text('Rogério Braga', pageWidth / 2, y, { align: 'center' });
+
+            const pdfBase64 = doc.output('datauristring').split(',')[1];
+            doc.save(`Resultado_Tríade_do_Tempo_${name}.pdf`);
+            return { pdfBase64 };
+        }
+        function sendResults() {
+            const name = document.getElementById('name').value.trim();
+            const profession = document.getElementById('profession').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const nameError = document.getElementById('name-error');
+            const professionError = document.getElementById('profession-error');
+            const emailError = document.getElementById('email-error');
+            const resultText = document.getElementById('result-text');
+
+            nameError.style.display = name ? 'none' : 'block';
+            professionError.style.display = profession ? 'none' : 'block';
+            emailError.style.display = validateEmail(email) ? 'none' : 'block';
+            if (!name || !profession || !validateEmail(email)) {
+                resultText.textContent = 'Preencha nome, profissão e um e-mail válido.';
+                return;
+            }
+
+            let totals = { A: 0, B: 0, C: 0, General: 0 };
+            const circumstance = [1, 6, 9, 12, 15];
+            const importance = [4, 7, 10, 11, 14, 17];
+            const urgency = [2, 3, 5, 8, 13, 16, 18];
+
+            for (let i = 1; i <= 18; i++) {
+                let selected = document.querySelector(`input[name="q${i}"]:checked`);
+                if (!selected) {
+                    resultText.textContent = 'Responda todas as 18 perguntas antes de enviar.';
+                    return;
+                }
+                const value = parseInt(selected.value);
+                if (circumstance.includes(i)) totals.A += value;
+                else if (importance.includes(i)) totals.B += value;
+                else if (urgency.includes(i)) totals.C += value;
+            }
+            totals.General = totals.A + totals.B + totals.C;
+
+            const percentages = {
+                A: totals.General ? ((totals.A / totals.General) * 100).toFixed(1) : 0,
+                B: totals.General ? ((totals.B / totals.General) * 100).toFixed(1) : 0,
+                C: totals.General ? ((totals.C / totals.General) * 100).toFixed(1) : 0
+            };
+            const energyLeak = (totals.A + totals.C).toFixed(1);
+
+            try {
+                document.getElementById('progressA').style.width = `${percentages.A}%`;
+                document.getElementById('progressB').style.width = `${percentages.B}%`;
+                document.getElementById('progressC').style.width = `${percentages.C}%`;
+            } catch (error) {
+                console.error('Erro ao atualizar progress bars:', error);
+                resultText.textContent = 'Erro ao exibir os resultados. Tente novamente.';
+                return;
+            }
+
+            let triadChartImg = null;
+            let idealChartImg = null;
+            let pdfBase64 = null;
+            if (window.Chart) {
+                Chart.register(ChartDataLabels);
+                const ctx = document.getElementById('triadChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Circunstância', 'Importância', 'Urgência'],
+                        datasets: [{
+                            data: [percentages.A, percentages.B, percentages.C],
+                            backgroundColor: ['#FFD700', '#0000FF', '#FF0000'],
+                            borderColor: ['#FFD700', '#0000FF', '#FF0000'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: true },
+                            datalabels: {
+                                formatter: (value) => `${value}%`,
+                                color: (context) => context.dataset.backgroundColor[context.dataIndex] === '#FFD700' ? '#000000' : '#FFFFFF',
+                                font: { size: 25, weight: 'bold' },
+                                anchor: 'center',
+                                align: 'center'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Sua Tríade',
+                                font: { size: 18, weight: 'bold' },
+                                color: '#0288d1',
+                                padding: { top: 10, bottom: 10 }
+                            }
+                        },
+                        maintainAspectRatio: false
+                    }
+                });
+                const idealCtx = document.getElementById('idealTriadChart').getContext('2d');
+                new Chart(idealCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Circunstância', 'Importância', 'Urgência'],
+                        datasets: [{
+                            data: [10, 70, 20],
+                            backgroundColor: ['#FFD700', '#0000FF', '#FF0000'],
+                            borderColor: ['#FFD700', '#0000FF', '#FF0000'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: true },
+                            datalabels: {
+                                formatter: (value) => `${value}%`,
+                                color: (context) => context.dataset.backgroundColor[context.dataIndex] === '#FFD700' ? '#000000' : '#FFFFFF',
+                                font: { size: 25, weight: 'bold' },
+                                anchor: 'center',
+                                align: 'center'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Tríade Ideal',
+                                font: { size: 18, weight: 'bold' },
+                                color: '#0288d1',
+                                padding: { top: 10, bottom: 10 }
+                            }
+                        },
+                        maintainAspectRatio: false
+                    }
+                });
+                setTimeout(() => {
+                    triadChartImg = document.getElementById('triadChart').toDataURL('image/png');
+                    idealChartImg = document.getElementById('idealTriadChart').toDataURL('image/png');
+                    try {
+                        const result = generatePDF(name, profession, email, totals, percentages, energyLeak, triadChartImg, idealChartImg);
+                        pdfBase64 = result.pdfBase64;
+                    } catch (error) {
+                        resultText.textContent = 'Erro ao gerar o PDF. Verifique sua conexão e tente novamente.';
+                        console.error('Erro ao gerar PDF:', error);
+                        return;
+                    }
+                }, 1000);
+            }
+
+            setTimeout(() => {
+                try {
+                    document.getElementById('results-section').classList.remove('results-hidden');
+                    document.getElementById('progress-section').classList.remove('results-hidden');
+                    document.getElementById('totalA').textContent = totals.A || 0;
+                    document.getElementById('totalB').textContent = totals.B || 0;
+                    document.getElementById('totalC').textContent = totals.C || 0;
+                    document.getElementById('totalGeneral').textContent = totals.General || 0;
+                    document.getElementById('percentA').textContent = `${percentages.A}%` || '0%';
+                    document.getElementById('percentB').textContent = `${percentages.B}%` || '0%';
+                    document.getElementById('percentC').textContent = `${percentages.C}%` || '0%';
+                    document.getElementById('energyLeak').textContent = energyLeak || 0;
+                    document.getElementById('result-title').classList.remove('results-hidden');
+                    document.getElementById('result-totals').classList.remove('results-hidden');
+                    document.getElementById('result-title').textContent = `${name} (${profession}) - Sua Tríade do Tempo`;
+                    resultText.textContent = `Sua gestão do tempo: Circunstância: ${percentages.A}%, Importância: ${percentages.B}%, Urgência: ${percentages.C}%. Vazamento de Energia: ${energyLeak}.`;
+                    document.getElementById('chart-container').classList.remove('results-hidden');
+                    document.getElementById('ideal-chart-container').classList.remove('results-hidden');
+                } catch (error) {
+                    console.error('Erro ao atualizar interface:', error);
+                    resultText.textContent = 'Erro ao exibir os resultados. Tente novamente.';
+                    return;
+                }
+
+                if (!pdfBase64) {
+                    resultText.textContent = 'Aguarde a geração do PDF e tente novamente.';
+                    return;
+                }
+
+                // Initialize EmailJS with your Public Key from EmailJS dashboard (Account > API Keys)
+                emailjs.init({ publicKey: 'YOUR_PUBLIC_KEY' });
+                const templateParams = {
+                    name: name,
+                    percentA: percentages.A,
+                    percentB: percentages.B,
+                    percentC: percentages.C,
+                    energyLeak: energyLeak,
+                    to_email: 'impulsoflow@gmail.com',
+                    pdf_attachment: {
+                        name: `Resultado_Tríade_do_Tempo_${name}.pdf`,
+                        data: pdfBase64,
+                        type: 'application/pdf'
+                    }
+                };
+                // Replace YOUR_SERVICE_ID with your EmailJS Service ID (Email Services)
+                // Replace YOUR_TEMPLATE_ID with your EmailJS Template ID (Email Templates)
+                emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams)
+                    .then(() => {
+                        resultText.textContent = 'Rogério Braga / Impulso Coaching';
+                    }, (error) => {
+                        console.error('Erro ao enviar e-mail:', error);
+                        resultText.textContent = 'Erro ao enviar o e-mail. Tente novamente.';
+                    });
+
+                document.getElementById('notification-sound').play().catch(error => {
+                    console.error('Erro ao reproduzir o áudio:', error);
+                    resultText.textContent = 'Rogério Braga / Impulso Coaching';
+                });
+
+                // Automatically open email client with pre-filled email
+                setTimeout(() => {
+                    const mailtoSubject = encodeURIComponent(`Resultado do Teste da Tríade do Tempo - ${name}`);
+                    const mailtoBody = encodeURIComponent(
+                        `Nome: ${name}\n` +
+                        `Circunstância: ${percentages.A}%\n` +
+                        `Importância: ${percentages.B}%\n` +
+                        `Urgência: ${percentages.C}%\n` +
+                        `Vazamento de Energia: ${energyLeak}\n` +
+                        `Por favor, encontre o relatório em anexo.`
+                    );
+                    // Note: Attaching the PDF via mailto is not reliable across all clients.
+                    // The EmailJS send above ensures the PDF is sent programmatically.
+                    const mailtoLink = `mailto:impulsoflow@gmail.com?subject=${mailtoSubject}&body=${mailtoBody}`;
+                    window.location.href = mailtoLink;
+                }, 1600);
+            }, 1500);
+        }
+        document.querySelectorAll('input[type="radio"]').forEach(input => {
+            input.addEventListener('change', () => {
+                const name = document.getElementById('name').value.trim();
+                const profession = document.getElementById('profession').value.trim();
+                const email = document.getElementById('email').value.trim();
+                document.getElementById('name-error').style.display = name ? 'none' : 'block';
+                document.getElementById('profession-error').style.display = profession ? 'none' : 'block';
+                document.getElementById('email-error').style.display = validateEmail(email) ? 'none' : 'block';
+            });
+        });
+        document.getElementById('name').addEventListener('input', () => {
+            document.getElementById('name-error').style.display = document.getElementById('name').value.trim() ? 'none' : 'block';
+        });
+        document.getElementById('profession').addEventListener('input', () => {
+            document.getElementById('profession-error').style.display = document.getElementById('profession').value.trim() ? 'none' : 'block';
+        });
+        document.getElementById('email').addEventListener('input', () => {
+            document.getElementById('email-error').style.display = validateEmail(document.getElementById('email').value.trim()) ? 'none' : 'block';
+        });
+    </script>
+</body>
+</html>
